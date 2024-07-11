@@ -8,6 +8,18 @@ function Move-CanonMP4 {
         [string]$DestinationBasePath = "D:\Offline_Archive\Videos\Canon"
     )
 
+    # Validate SourceBasePath
+    if (-not (Test-Path -Path $SourceBasePath)) {
+        Write-Error "Source path '$SourceBasePath' does not exist. Please provide a valid source path."
+        return
+    }
+
+    # Validate DestinationBasePath
+    if (-not (Test-Path -Path $DestinationBasePath)) {
+        Write-Error "Destination path '$DestinationBasePath' does not exist. Please provide a valid destination path."
+        return
+    }
+
     Write-Verbose "Checking if the destination drive is the expected Samsung portable SSD."
     # Unique identifier for the Samsung portable SSD
     $expectedDriveSerialNumber = "Z131909R0JN8U6S"
@@ -33,11 +45,8 @@ function Move-CanonMP4 {
     $totalSize = ($mp4Files | Measure-Object -Property Length -Sum).Sum
     $movedSize = 0
 
-    $progressParams = @{
-        Activity = "Moving MP4 Files"
-        Status   = "Progress:"
-        PercentComplete = 0
-    }
+    # Group MP4 files by their parent directory
+    $groupedFiles = $mp4Files | Group-Object { $_.DirectoryName }
 
     if ($mp4Files.Count -eq 0) {
         if ($PSCmdlet.ShouldProcess($SourceBasePath, "No MP4 files found")) {
@@ -45,40 +54,62 @@ function Move-CanonMP4 {
         }
     }
 
-    Write-Progress @progressParams
+    $startDate = Get-Date
 
-    foreach ($file in $mp4Files) {
-        $relativePath = $file.FullName.Substring($SourceBasePath.Length).TrimStart('\')
-        $destinationPath = Join-Path -Path $DestinationBasePath -ChildPath $relativePath
-        $destinationDir = Split-Path -Path $destinationPath
-
-        if (-not (Test-Path -Path $destinationDir)) {
-            if ($PSCmdlet.ShouldProcess($destinationDir, "Create directory")) {
+    foreach ($group in $groupedFiles) {
+        $sourceDir = $group.Name
+        $relativePath = $sourceDir.Substring($SourceBasePath.Length)
+        $destinationDir = Join-Path -Path $DestinationBasePath -ChildPath $relativePath
+    
+        # Ensure the destination directory exists
+        if ($PSCmdlet.ShouldProcess($destinationDir, "Create destination directory")) {
+            if (-not (Test-Path -Path $destinationDir)) {
                 New-Item -Path $destinationDir -ItemType Directory -Force | Out-Null
             }
         }
+    
+        # Calculate the total size of files in the current group
+        $groupSize = ($group.Group | Measure-Object -Property Length -Sum).Sum
+        $fileNames = $group.Group | Select-Object -ExpandProperty Name
 
-        if ($PSCmdlet.ShouldProcess($file.FullName, "Move to $destinationPath")) {
-            Write-Verbose "Moving $file.FullName to $destinationPath"
-            Move-Item -Path $file.FullName -Destination $destinationPath -ErrorAction Stop
-            $movedSize += $file.Length
+        $currentDate = Get-Date
+        $statusMessage = "Moving files from $sourceDir (Batch size $([math]::Round($groupSize / 1MB, 2)) MB) started $($currentDate.ToString('HH:mm:ss'))"
+        $estimatedTimeSeconds = [math]::Ceiling(($groupSize / 1MB) / 35)
+        $estimatedFinishTime = $currentDate.AddSeconds($estimatedTimeSeconds).ToString('HH:mm:ss')
+        $statusMessage += " - estimated Finish: $estimatedFinishTime"
+        Write-Host $statusMessage
 
-            if ($totalSize -gt 0) {
-                $progressParams.PercentComplete = [math]::Round(($movedSize / $totalSize) * 100)
-            } else {
-                $progressParams.PercentComplete = 100
+        # Execute Robocopy
+        if ($PSCmdlet.ShouldProcess("$sourceDir", "Move " + ($fileNames -join ", ") + " to $destinationDir")) {
+            try {
+                robocopy "$sourceDir" "$destinationDir" *.mp4 /mov
+            } catch {
+                Write-Error "An error occurred while moving files from $sourceDir to $destinationDir`: $_"
             }
-
-            Write-Progress @progressParams
         }
 
-        $sourceDir = Split-Path -Path $file.FullName
-        $childItems = Get-ChildItem -Path $sourceDir
-        if ($childItems.Count -eq 0) {
-            if ($PSCmdlet.ShouldProcess($sourceDir, "Remove empty directory")) {
+        # Update moved size and progress
+        $movedSize += $groupSize
+        if ($totalSize -gt 0) {
+            $percentComplete = [math]::Round(($movedSize / $totalSize) * 100)
+        } else {
+            $percentComplete = 100
+        }
+        Write-Host "Overall progress: $percentComplete% completed."
+
+        # Optionally, remove the source directory if empty
+        $remainingItems = Get-ChildItem -Path $sourceDir
+        if ($remainingItems.Count -eq 0) {
+            if ($PSCmdlet.ShouldProcess("$sourceDir", "Remove empty directory")) {
                 Remove-Item -Path $sourceDir -Force
             }
         }
     }
-    Write-Progress @progressParams -Completed
+
+    $endDate = Get-Date
+    $elapsedTime = $endDate - $startDate
+    $writeSpeed = [math]::Round(($totalSize / 1MB) / $elapsedTime.TotalSeconds, 2)
+    Write-Verbose "Total size moved: $([math]::Round($totalSize / 1MB, 2)) MB"
+    Write-Verbose "Elapsed time: $($elapsedTime.ToString('hh\:mm\:ss\.ff'))"
+    Write-Verbose "Average write speed: $writeSpeed MB/s"
 }
