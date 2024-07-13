@@ -11,14 +11,28 @@ function Sync-OfflineArchive {
         [string]$DestinationPartitionUUID = "{00000000-0000-0000-0000-100000000000}5000000000000001"
     )
 
+    try {
+        # Retrieve the disk number for the given serial numbers using updated variable names
+        $sourceDiskNumber = (Get-Disk | Where-Object SerialNumber -eq "Z131909R0JN8U6S").Number
+        $destinationDiskNumber = (Get-Disk | Where-Object SerialNumber -eq "957EE7654321").Number
 
-    # Retrieve the disk number for the given serial numbers using updated variable names
-    $sourceDiskNumber = (Get-Disk | Where-Object SerialNumber -eq "Z131909R0JN8U6S").Number
-    $destinationDiskNumber = (Get-Disk | Where-Object SerialNumber -eq "957EE7654321").Number
-
-    # Retrieve the drive letter for the partitions with the specified unique IDs using updated variable names
-    $sourceDriveLetter = (Get-Partition | Where-Object { $_.DiskNumber -eq $sourceDiskNumber -and $_.UniqueId -eq $SourcePartitionUUID }).DriveLetter
-    $destinationDriveLetter = (Get-Partition | Where-Object { $_.DiskNumber -eq $destinationDiskNumber -and $_.UniqueId -eq $DestinationPartitionUUID }).DriveLetter
+        # Retrieve the drive letter for the partitions with the specified unique IDs using updated variable names
+        $sourceDriveLetter = (Get-Partition | Where-Object { $_.DiskNumber -eq $sourceDiskNumber -and $_.UniqueId -eq $SourcePartitionUUID }).DriveLetter
+        $destinationDriveLetter = (Get-Partition | Where-Object { $_.DiskNumber -eq $destinationDiskNumber -and $_.UniqueId -eq $DestinationPartitionUUID }).DriveLetter
+        
+        # Check if $sourceDriveLetter or $destinationDriveLetter are empty and abort the function if so
+        if ([string]::IsNullOrEmpty($sourceDriveLetter)) {
+            Write-Error "Source drive not found. Aborting execution."
+            return
+        }
+        if ([string]::IsNullOrEmpty($destinationDriveLetter)) {
+            Write-Error "Destination drive not found. Aborting execution."
+            return
+        }
+    } catch {
+        Write-Error "An error occurred while identifying source and destination drives: $_"
+        return
+    }
 
     # Construct the source and destination paths using updated variable names
     $sourcePath = "${sourceDriveLetter}:\Offline_Archive"
