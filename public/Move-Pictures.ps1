@@ -68,23 +68,6 @@ function Move-Pictures {
     }
     Write-Progress -Activity "Processing Files" -Completed
 
-    # Remove any empty subdirectories recursively (directories containing only empty directories will also be removed)
-    $simulatedDeletions = @() # For WhatIf mode
-    do {
-        $emptyDirectories = Get-ChildItem -Path $SourceDirectory -Recurse -Directory | 
-            Where-Object { -not ($_.GetFileSystemInfos() | Where-Object { $simulatedDeletions -notcontains $_.FullName }) -and $_.FullName -ne $SourceDirectory } | 
-            Where-Object { $simulatedDeletions -notcontains $_.FullName } | 
-            Select-Object -ExpandProperty FullName
-
-        foreach ($dir in $emptyDirectories) {
-            if ($PSCmdlet.ShouldProcess($dir, "Remove empty directory")) {
-                Remove-Item -Path $dir
-                Write-Host "Removed empty directory: $dir"
-            } else {
-                # Simulate deletion by adding to the list, or actually delete if not in WhatIf mode
-                $simulatedDeletions += $dir
-            }
-        }
-        # Condition to exit the loop: No more empty directories or all would-be-deleted directories are simulated
-    } while ($emptyDirectories.Count -gt 0)
+    # Remove-EmpyDirectory is defined in public/Remove-EmptyDirectory.ps1 in the same module
+    Remove-EmptyDirectory -Target $SourceDirectory -Recurse -OnlySubDirectories
 }
