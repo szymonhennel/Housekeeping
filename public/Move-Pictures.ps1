@@ -7,10 +7,24 @@ function Move-Pictures {
         [string]$DestinationDirectory
     )
 
+    if (-not (Test-Path -Path $SourceDirectory)) {
+        Write-Error "Source directory '$SourceDirectory' does not exist."
+        return
+    }
+    if (-not (Test-Path -Path $DestinationDirectory)) {
+        Write-Error "Destination directory '$DestinationDirectory' does not exist."
+        return
+    }
+
+    # Load the System.Drawing assembly to read EXIF data from JPEG files
     Add-Type -AssemblyName System.Drawing
 
+    $totalFiles = Get-ChildItem -Path $SourceDirectory -Recurse -Include @("*.JPG", "*.AVI") | Measure-Object | Select-Object -ExpandProperty Count
+    $processedFiles = 0
+
     Get-ChildItem -Path $SourceDirectory -Recurse -Include @("*.JPG", "*.AVI") | ForEach-Object {
-        Write-Verbose "Processing $($_.FullName)"
+        $processedFiles++
+        Write-Progress -Activity "Processing $($_.FullName)" -Status "$processedFiles of $totalFiles" -PercentComplete ((($processedFiles-1) / $totalFiles) * 100)
 
         $file = $_
         $dateTaken = $null
@@ -52,4 +66,25 @@ function Move-Pictures {
             Move-Item -Path $file.FullName -Destination $targetPath
         }
     }
+    Write-Progress -Activity "Processing Files" -Completed
+
+    # Remove any empty subdirectories recursively (directories containing only empty directories will also be removed)
+    $simulatedDeletions = @() # For WhatIf mode
+    do {
+        $emptyDirectories = Get-ChildItem -Path $SourceDirectory -Recurse -Directory | 
+            Where-Object { -not ($_.GetFileSystemInfos() | Where-Object { $simulatedDeletions -notcontains $_.FullName }) -and $_.FullName -ne $SourceDirectory } | 
+            Where-Object { $simulatedDeletions -notcontains $_.FullName } | 
+            Select-Object -ExpandProperty FullName
+
+        foreach ($dir in $emptyDirectories) {
+            if ($PSCmdlet.ShouldProcess($dir, "Remove empty directory")) {
+                Remove-Item -Path $dir
+                Write-Host "Removed empty directory: $dir"
+            } else {
+                # Simulate deletion by adding to the list, or actually delete if not in WhatIf mode
+                $simulatedDeletions += $dir
+            }
+        }
+        # Condition to exit the loop: No more empty directories or all would-be-deleted directories are simulated
+    } while ($emptyDirectories.Count -gt 0)
 }
