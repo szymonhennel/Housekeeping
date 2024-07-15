@@ -1,4 +1,4 @@
-function Get-MultipleVersionPackages {
+function Get-CoinstalledVersions {
     param(
         [string[]]$Ignore = @(   # List of package names to ignore
             'Security Intelligence Update for Microsoft Defender Antivirus'
