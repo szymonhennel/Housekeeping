@@ -2,47 +2,30 @@ function Move-CanonMP4 {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param (
         [Parameter(Mandatory=$false)]
-        [string]$SourceBasePath = "C:\Users\Szymon\Documents\My_Documents\Code\PowerShell\Test",
+        [string]$Source = "C:\Users\Szymon\Documents\My_Documents\Code\PowerShell\Test",
         [Parameter(Mandatory=$false)]
-        [string]$DestinationBasePath = "D:\Offline_Archive\Videos\Canon"
+        [string]$Destination = "Offline_Archive\Videos\Canon",
+        [Parameter(Mandatory=$false)]
+        [string]$DestinationDriveSerialNumber = "Z131909R0JN8U6S",
+        [Parameter(Mandatory=$false)]
+        [string]$DestinationPartitionUUID = "{00000000-0000-0000-0000-100000000000}5000000000000001"
     )
 
+    # Check if the destination base path is missing a drive letter
+    $Destination = Get-DrivePath -Path $Destination -DiskSerialNumber $DestinationDriveSerialNumber -PartitionUUID $DestinationPartitionUUID
+
     # Validate paths
-    if (-not (Test-Path -Path $SourceBasePath)) {
-        Write-Error "Source path '$SourceBasePath' does not exist. Please provide a valid source path."
+    if (-not (Test-Path -Path $Source)) {
+        Write-Error "Source path '$Source' does not exist. Please provide a valid source path."
         return
     }
-    if (-not (Test-Path -Path $DestinationBasePath)) {
-        Write-Error "Destination path '$DestinationBasePath' does not exist. Please provide a valid destination path."
-        return
-    }
-
-    Write-Verbose "Checking if the destination drive is the expected Samsung portable SSD."
-    # Unique identifier for the Samsung portable SSD
-    $expectedDriveSerialNumber = "Z131909R0JN8U6S"
-    $expectedPartitionUUID = "{00000000-0000-0000-0000-100000000000}5000000000000001"
-    Write-Verbose "Expected drive serial number: $expectedDriveSerialNumber"
-    Write-Verbose "Expected partition UUID: $expectedPartitionUUID"
-
-    $sourceDrive = Split-Path -Path $SourceBasePath -Qualifier
-    $destinationDrive = Split-Path -Path $DestinationBasePath -Qualifier
-
-    $driveLetter = $destinationDrive[0]
-    $diskNumber = (Get-Partition | Where-Object { $_.DriveLetter -eq $driveLetter }).DiskNumber
-    $driveSerialNumber = (Get-Disk | Where-Object { $_.Number -eq $diskNumber }).SerialNumber
-    $partitionUUID = (Get-Partition | Where-Object { $_.DriveLetter -eq $driveLetter }).UniqueID
-
-    Write-Verbose "Destination drive serial number: $($driveSerialNumber)"
-    Write-Verbose "Destination partition UUID: $($partitionUUID)"
-
-    # Check if the drive's serial number and partition UUID match the expected values
-    if ($driveSerialNumber -ne $expectedDriveSerialNumber -or $partitionUUID -ne $expectedPartitionUUID) {
-        Write-Error "The destination drive is not the expected Samsung portable SSD. Aborting operation."
+    if (-not (Test-Path -Path $Destination)) {
+        Write-Error "Destination path '$Destination' does not exist. Please provide a valid destination path."
         return
     }
 
     # Calculate total size of MP4 files
-    $mp4Files = Get-ChildItem -Path $SourceBasePath -Filter *.MP4 -Recurse
+    $mp4Files = Get-ChildItem -Path $Source -Filter *.MP4 -Recurse
     $totalSize = ($mp4Files | Measure-Object -Property Length -Sum).Sum
     if ($mp4Files.Count -eq 0) {
         Write-Warning "No MP4 files found in the specified source path. Nothing will be done."
@@ -63,8 +46,8 @@ function Move-CanonMP4 {
         Write-Progress @progressParams
     
         foreach ($file in $mp4Files) {
-            $relativePath = $file.FullName.Substring($SourceBasePath.Length).TrimStart('\')
-            $destinationPath = Join-Path -Path $DestinationBasePath -ChildPath $relativePath
+            $relativePath = $file.FullName.Substring($Source.Length).TrimStart('\')
+            $destinationPath = Join-Path -Path $Destination -ChildPath $relativePath
             $destinationDir = Split-Path -Path $destinationPath
     
             if (-not (Test-Path -Path $destinationDir)) {
@@ -106,8 +89,8 @@ function Move-CanonMP4 {
         Write-Verbose "Total size: $([math]::Round($totalSize / 1MB, 2)) MB." 
         Write-Verbose "Estimated finish: $estimatedFinishTime"
 
-        if ($PSCmdlet.ShouldProcess($SourceBasePath, "Move all MP4 files to $DestinationBasePath")) {
-            robocopy "$SourceBasePath" "$DestinationBasePath" *.mp4 /mov /s /mt:8 /r:2 /w:1
+        if ($PSCmdlet.ShouldProcess($Source, "Move all MP4 files to $Destination")) {
+            robocopy "$Source" "$Destination" *.mp4 /mov /s /mt:8 /r:2 /w:1
         }
 
         $endDate = Get-Date
@@ -119,7 +102,7 @@ function Move-CanonMP4 {
     }
 
     # Check for and remove empty directories
-    $directories = Get-ChildItem -Path $SourceBasePath -Directory -Recurse
+    $directories = Get-ChildItem -Path $Source -Directory -Recurse
     foreach ($dir in $directories) {
         $items = Get-ChildItem -Path $dir.FullName
         if ($items.Count -eq 0) {
