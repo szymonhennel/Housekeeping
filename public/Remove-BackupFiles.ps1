@@ -1,4 +1,4 @@
-function Remove-EmacsBackupFiles {
+function Remove-BackupFiles {
     [CmdletBinding(supportsShouldProcess = $true)]
     param (
         [Parameter(Mandatory = $true)]
@@ -11,7 +11,8 @@ function Remove-EmacsBackupFiles {
         [switch]$Safely
     )
 
-    $backupMarkers = @("~")
+    $backupMarkers = @("~", ".bak", ".old", ".backup")
 
     Remove-FileByEnding -Path $Path -Endings $backupMarkers -Recurse:$Recurse -Safely:$Safely
+
 }

@@ -15,21 +15,7 @@ function Remove-LatexTemporaryFiles {
         ".aux", ".bbl", ".blg", ".el", ".fdb_latexmk", ".fls", ".lof", ".log", ".lot", ".out", ".synctex.gz", ".toc"
     )
 
-    Get-ChildItem -Path $Path -Recurse:$Recurse -File | ForEach-Object {
-        if ($extensions -contains $_.Extension) {
-            if ($Safely) {
-                if ($PSCmdlet.ShouldProcess($_.FullName, "Move to Recycle Bin")) {
-                    Remove-ItemSafely -Path $_.FullName
-                    Write-Verbose "Moved $($_.FullName) to Recycle Bin"
-                }
-            } else {
-                if ($PSCmdlet.ShouldProcess($_.FullName, "Remove")) {
-                    Remove-Item -Path $_.FullName
-                    Write-Verbose "Removed $($_.FullName)"
-                }
-            }
-        }
-    }
+    Remove-FileByExtension -Path $Path -Extensions $extensions -Recurse:$Recurse -Safely:$Safely
 
     # Remove empty auto directories. When identifying them, we ignore .el files so that -WhatIf gives a realistic
     # result. Without -WhatIf, those files will have been deleted in the previous step.
