@@ -12,10 +12,12 @@ function Remove-FileByExtension {
             if ($Safely) {
                 if ($PSCmdlet.ShouldProcess($_.FullName, "Move to Recycle Bin")) {
                     Remove-ItemSafely -Path $_.FullName
+                    Write-Verbose "Moved $($_.FullName) to Recycle Bin"
                 }
             } else {
                 if ($PSCmdlet.ShouldProcess($_.FullName, "Remove")) {
                     Remove-Item -Path $_.FullName
+                    Write-Verbose "Removed $($_.FullName)"
                 }
             }
         }
