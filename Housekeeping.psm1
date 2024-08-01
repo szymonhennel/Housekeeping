@@ -11,6 +11,8 @@
 . "$PSScriptRoot\public\Remove-LatexTemporaryFiles.ps1"
 . "$PSScriptRoot\public\Remove-EmacsBackupFiles.ps1"
 . "$PSScriptRoot\public\Remove-BackupFiles.ps1"
+. "$PSScriptRoot\public\Get-FullExtension.ps1"
+. "$PSScriptRoot\public\Get-FileNameWithoutFullExtension.ps1"
 
 Export-ModuleMember -Function Move-CanonMP4
 Export-ModuleMember -Function Sync-OfflineArchive
@@ -25,3 +27,5 @@ Export-ModuleMember -Function Remove-FileByEnding
 Export-ModuleMember -Function Remove-LatexTemporaryFiles
 Export-ModuleMember -Function Remove-EmacsBackupFiles
 Export-ModuleMember -Function Remove-BackupFiles
+Export-ModuleMember -Function Get-FullExtension
+Export-ModuleMember -Function Get-FileNameWithoutFullExtension
