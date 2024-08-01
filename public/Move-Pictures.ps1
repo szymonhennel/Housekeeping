@@ -14,8 +14,12 @@ function Move-Pictures {
         [string[]]$Extensions = @("*.JPG"),
 
         [Parameter(Mandatory=$false)]
-        [string]$DefaultPrefix = "IMG"
+        [string]$DefaultPrefix = $null
     )
+
+    if ($DefaultPrefix) {
+        $DefaultPrefix = $DefaultPrefix + "_"
+    }
 
     if (-not (Test-Path -Path $SourceDirectory)) {
         Write-Error "Source directory '$SourceDirectory' does not exist."
@@ -90,12 +94,12 @@ function Move-Pictures {
 
         # We have to handle some special cases. The first two are for portrait photos taken with the Android camera app.
         if ($fileNameWithoutExtension -match "^(\d{5})PORTRAIT_(\d{5})_BURST(\d{14,17})$") {
-            $newFileName = $DefaultPrefix + "_" + $formattedDate
+            $newFileName = $DefaultPrefix + $formattedDate
         } elseif ($fileNameWithoutExtension -match "^(\d{5})dPORTRAIT_(\d{5})_BURST(\d{14,17})_COVER$") {
-            $newFileName = $DefaultPrefix + "_" + $formattedDate + "_Portrait"
+            $newFileName = $DefaultPrefix + $formattedDate + "_Portrait"
         # Burst photos taken with the Android camera app.
         } elseif ($fileNameWithoutExtension -match "^(\d{5})IMG_(\d{5})_BURST(\d{14,17})(?:_COVER)?$") {
-            $newFileName = $DefaultPrefix + "_" + $formattedDate + "_BURST_" + "{0:D2}" -f [int]$matches[1]
+            $newFileName = $DefaultPrefix + $formattedDate + "_BURST_" + "{0:D2}" -f [int]$matches[1]
         # Other special case rules
         } else {
             # Add an underscore to any existing timestamps.
@@ -104,22 +108,26 @@ function Move-Pictures {
             # Warn if a differently formatted date is already present in the file name. The regex checks if the existing
             # file name contains formatted dates.
             if ($fileNameWithoutExtension -match "\d{8}_\d{6}") {
-                $existingDateObj = [datetime]::ParseExact($matches[0], "yyyyMMdd_HHmmss", $null)
-                
-                if ([math]::Abs(($existingDateObj - $dateTaken).TotalDays) -gt 1) {
-                    if ($dateFromExif) {
-                        Write-Warning ("$($file.Name): Formatted date differing from EXIF data by more than one day " +
-                            "already present in file name. A second timestamp will be added.")
+                try {
+                    $existingDateObj = [datetime]::ParseExact($matches[0], "yyyyMMdd_HHmmss", $null)
+                    
+                    if ([math]::Abs(($existingDateObj - $dateTaken).TotalDays) -gt 1) {
+                        if ($dateFromExif) {
+                            Write-Warning ("$($file.Name): Formatted date differing from EXIF data by more than one day " +
+                                "already present in file name. A second timestamp will be added.")
+                        } else {
+                            # We don't trust the write time enough to challenge the file name.
+                            Write-Warning ("$($file.Name): Formatted date differing from LastWriteTime by more than one " +
+                                "day already present in file name.")
+                            $appendTimestamp = $false
+                        }
                     } else {
-                        # We don't trust the write time enough to challenge the file name.
-                        Write-Warning ("$($file.Name): Formatted date differing from LastWriteTime by more than one " +
-                            "day already present in file name.")
+                        Write-Verbose ("$($file.Name): Formatted date differing from metadata by less than one day " +
+                            "already present in file name.")
                         $appendTimestamp = $false
                     }
-                } else {
-                    Write-Verbose ("$($file.Name): Formatted date differing from metadata by less than one day " +
-                        "already present in file name.")
-                    $appendTimestamp = $false
+                } catch {
+                    Write-Warning ("$($file.Name): Could not parse existing formatted date '$($matches[0])'. Error: $_")
                 }
             }
             
@@ -133,12 +141,12 @@ function Move-Pictures {
             # If the file starts with any of the prefixes in $prefixesToMove, move it to the end to ensure chronological
             # order of Android camera pictures.
             foreach ($prefix in $prefixesToMove) {
-                $newFileName = $newFileName -replace "^($prefix)_(.*)", ($DefaultPrefix + '_$2_$1')
+                $newFileName = $newFileName -replace "^($prefix)_(.*)", ($DefaultPrefix + '$2_$1')
             }
 
             # If a file name starts with digits, add the prefix $DefaultPrefix.
-            if ($newFileName -match "^\d") {
-                $newFileName = $DefaultPrefix + "_" + $newFileName
+            if ($DefaultPrefix -and $newFileName -match "^\d") {
+                $newFileName = $DefaultPrefix + $newFileName
             }
         }
        
@@ -170,9 +178,7 @@ function Move-Pictures {
             if (Test-Path -Path $targetPath) {
 
                 $targetFileSize = (Get-Item -Path $targetPath).Length
-                if ($file.Length -gt $targetFileSize) {
-                    Write-Warning "File is larger than the existing file at $targetPath."
-                    
+                if ($file.Length -gt $targetFileSize) {                 
                     $targetDuplicatesFolder = Join-Path -Path $SourceDirectory -ChildPath "TargetDuplicates"
                     $targetDuplicatesYearMonthFolder = Join-Path -Path $targetDuplicatesFolder -ChildPath ($dateTaken.ToString("yyyy-MM"))
 
