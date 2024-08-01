@@ -13,6 +13,8 @@
 . "$PSScriptRoot\public\Remove-BackupFiles.ps1"
 . "$PSScriptRoot\public\Get-FullExtension.ps1"
 . "$PSScriptRoot\public\Get-FileNameWithoutFullExtension.ps1"
+. "$PSScriptRoot\public\Get-ImageCreationDate.ps1"
+. "$PSScriptRoot\public\Get-VideoCreationDate.ps1"
 
 Export-ModuleMember -Function Move-CanonMP4
 Export-ModuleMember -Function Sync-OfflineArchive
@@ -29,3 +31,5 @@ Export-ModuleMember -Function Remove-EmacsBackupFiles
 Export-ModuleMember -Function Remove-BackupFiles
 Export-ModuleMember -Function Get-FullExtension
 Export-ModuleMember -Function Get-FileNameWithoutFullExtension
+Export-ModuleMember -Function Get-ImageCreationDate
+Export-ModuleMember -Function Get-VideoCreationDate

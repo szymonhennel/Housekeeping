@@ -2,10 +2,10 @@ function Move-Pictures {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param (
         [Parameter(Mandatory=$true)]
-        [string]$SourceDirectory,
+        [string]$Source,
 
         [Parameter(Mandatory=$true)]
-        [string]$DestinationDirectory,
+        [string]$Destination,
 
         [Parameter(Mandatory=$false)]
         [switch]$TagDuplicates,
@@ -14,19 +14,22 @@ function Move-Pictures {
         [string[]]$Extensions = @("*.JPG"),
 
         [Parameter(Mandatory=$false)]
-        [string]$DefaultPrefix = $null
+        [string]$DefaultPrefix = $null,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$RemoveEmptySourceDirectory
     )
 
     if ($DefaultPrefix) {
         $DefaultPrefix = $DefaultPrefix + "_"
     }
 
-    if (-not (Test-Path -Path $SourceDirectory)) {
-        Write-Error "Source directory '$SourceDirectory' does not exist."
+    if (-not (Test-Path -Path $Source)) {
+        Write-Error "Source directory '$Source' does not exist."
         return
     }
-    if (-not (Test-Path -Path $DestinationDirectory)) {
-        Write-Error "Destination directory '$DestinationDirectory' does not exist."
+    if (-not (Test-Path -Path $Destination)) {
+        Write-Error "Destination directory '$Destination' does not exist."
         return
     }
 
@@ -34,13 +37,13 @@ function Move-Pictures {
     Add-Type -AssemblyName System.Drawing
 
     # Get the list of files to process to count them for a progress bar
-    $totalFiles = Get-ChildItem -Path $SourceDirectory -Recurse -Include $Extensions | 
+    $totalFiles = Get-ChildItem -Path $Source -Recurse -Include $Extensions | 
         Measure-Object | 
         Select-Object -ExpandProperty Count
     $processedFiles = 0
 
     # Get the list of files to process and pass to the main loop
-    Get-ChildItem -Path $SourceDirectory -Recurse -Include $Extensions | ForEach-Object {
+    Get-ChildItem -Path $Source -Recurse -Include $Extensions | ForEach-Object {
         $processedFiles++
 
         # Update the progress bar
@@ -55,29 +58,23 @@ function Move-Pictures {
         # write time.
         $dateFromExif = $false
         if ($file.Extension -eq ".JPG") {
-            try {
-                $img = [System.Drawing.Image]::FromFile($file.FullName)
-                # 36867 is the EXIF tag for DateTimeOriginal
-                $dateTakenStr = [System.Text.Encoding]::ASCII.GetString($img.GetPropertyItem(36867).Value).Trim([char]0)
-                $dateTaken = [datetime]::ParseExact($dateTakenStr, "yyyy:MM:dd HH:mm:ss", $null)
-                $img.Dispose()
-                $dateFromExif = $true
-            } catch {
-                # Dispose again, in case the error happened before the object was disposed.
-                try {$img.Dispose()} catch {Write-Warning "$($file.Name): could not dispose of image object."}
-                Write-Warning "Could not read EXIF data for $($file.Name), using LastWriteTime. Error: $_"
-                $dateTaken = $file.LastWriteTime
-            }
-            if (-not $dateTaken) {
-                Write-Warning "Could not determine date taken for $($file.Name), using LastWriteTime."
-                $dateTaken = $file.LastWriteTime
-            }
+            $dateTaken = Get-ImageCreationDate $file
+        } elseif ($file.Extension -in @(".MP4", ".MOV", ".AVI")) {
+            $dateTaken = Get-VideoCreationDate $file
         } else {
+            Write-Warning "Could not determine date taken for $($file.Name), using LastWriteTime."
+            $dateTaken = $file.LastWriteTime
+        }
+
+        # Last resort check: if we still don't have a date, use the last write time.
+        if (-not $dateTaken) {
+            Write-Warning "Could not determine date taken for $($file.Name), using LastWriteTime."
             $dateTaken = $file.LastWriteTime
         }
 
         # This will be added as timestamp to the file name
         $formattedDate = $dateTaken.ToString("yyyyMMdd_HHmmss")
+        $folderDate = $dateTaken.ToString("yyyy-MM")
 
         # Get-FileNameWithoutFullExtension and Get-FullExtension are defined in corresponding files in public/ in this
         # same module
@@ -117,6 +114,9 @@ function Move-Pictures {
                                 "already present in file name. A second timestamp will be added.")
                         } else {
                             # We don't trust the write time enough to challenge the file name.
+                            # We replace the timestamp with the one based on the file name.
+                            $formattedDate = $existingDateObj.ToString("yyyyMMdd_HHmmss")
+                            $folderDate = $existingDateObj.ToString("yyyy-MM")
                             Write-Warning ("$($file.Name): Formatted date differing from LastWriteTime by more than one " +
                                 "day already present in file name.")
                             $appendTimestamp = $false
@@ -151,7 +151,7 @@ function Move-Pictures {
         }
        
         # The target folder is the destination directory plus the year and month the picture was taken.
-        $targetFolder = Join-Path -Path $DestinationDirectory -ChildPath ($dateTaken.ToString("yyyy-MM"))
+        $targetFolder = Join-Path -Path $Destination -ChildPath $folderDate
         
         # Create the target folder if it does not exist
         if (-not (Test-Path -Path $targetFolder)) {
@@ -179,8 +179,8 @@ function Move-Pictures {
 
                 $targetFileSize = (Get-Item -Path $targetPath).Length
                 if ($file.Length -gt $targetFileSize) {                 
-                    $targetDuplicatesFolder = Join-Path -Path $SourceDirectory -ChildPath "TargetDuplicates"
-                    $targetDuplicatesYearMonthFolder = Join-Path -Path $targetDuplicatesFolder -ChildPath ($dateTaken.ToString("yyyy-MM"))
+                    $targetDuplicatesFolder = Join-Path -Path $Source -ChildPath "TargetDuplicates"
+                    $targetDuplicatesYearMonthFolder = Join-Path -Path $targetDuplicatesFolder -ChildPath $folderDate
 
                     # Create the target duplicates folder if it does not exist
                     if (-not (Test-Path -Path $targetDuplicatesFolder)) {
@@ -219,5 +219,5 @@ function Move-Pictures {
     Write-Progress -Activity "Processing Files" -Completed
 
     # Remove-EmpyDirectory is defined in public/Remove-EmptyDirectory.ps1 in the same module
-    Remove-EmptyDirectory -Target $SourceDirectory -Recurse -OnlySubDirectories
+    Remove-EmptyDirectory -Target $Source -Recurse -OnlySubDirectories:(-not $RemoveEmptySourceDirectory)
 }
