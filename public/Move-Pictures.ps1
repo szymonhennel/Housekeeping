@@ -17,6 +17,9 @@ function Move-Pictures {
         [string]$DefaultPrefix = $null,
 
         [Parameter(Mandatory=$false)]
+        [switch]$TimestampFirst,
+
+        [Parameter(Mandatory=$false)]
         [switch]$RemoveEmptySourceDirectory
     )
 
@@ -92,7 +95,7 @@ function Move-Pictures {
         # We have to handle some special cases. The first two are for portrait photos taken with the Android camera app.
         if ($fileNameWithoutExtension -match "^(\d{5})PORTRAIT_(\d{5})_BURST(\d{14,17})$") {
             $newFileName = $DefaultPrefix + $formattedDate
-        } elseif ($fileNameWithoutExtension -match "^(\d{5})dPORTRAIT_(\d{5})_BURST(\d{14,17})_COVER$") {
+        } elseif ($fileNameWithoutExtension -match "^(\d{5})(\w)PORTRAIT_(\d{5})_BURST(\d{14,17})(_COV)?(ER)?$") {
             $newFileName = $DefaultPrefix + $formattedDate + "_Portrait"
         # Burst photos taken with the Android camera app.
         } elseif ($fileNameWithoutExtension -match "^(\d{5})IMG_(\d{5})_BURST(\d{14,17})(?:_COVER)?$") {
@@ -158,6 +161,10 @@ function Move-Pictures {
             if ($PSCmdlet.ShouldProcess($targetFolder, "Create new directory")) {
                 New-Item -ItemType Directory -Path $targetFolder | Out-Null
             }
+        }
+
+        if($TimestampFirst) {
+            $newFileName = $newFileName -replace "(.*)_(\d{8}_\d{6,9})(.*)", '$2_$1$3'
         }
 
         $newFileNameWithExtension = $newFileName + $fileExtension
