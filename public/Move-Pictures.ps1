@@ -17,7 +17,7 @@ function Move-Pictures {
         [string]$DefaultPrefix = $null,
 
         [Parameter(Mandatory=$false)]
-        [switch]$TimestampFirst,
+        [switch]$TrailingTimestamp,
 
         [Parameter(Mandatory=$false)]
         [switch]$RemoveEmptySourceDirectory
@@ -40,8 +40,8 @@ function Move-Pictures {
     Add-Type -AssemblyName System.Drawing
 
     # Get the list of files to process to count them for a progress bar
-    $totalFiles = Get-ChildItem -Path $Source -Recurse -Include $Extensions | 
-        Measure-Object | 
+    $totalFiles = Get-ChildItem -Path $Source -Recurse -Include $Extensions |
+        Measure-Object |
         Select-Object -ExpandProperty Count
     $processedFiles = 0
 
@@ -53,7 +53,7 @@ function Move-Pictures {
         Write-Progress -Activity "Processing $($_.FullName)" `
             -Status "$processedFiles of $totalFiles" `
             -PercentComplete ((($processedFiles-1) / $totalFiles) * 100)
-        
+
         $file = $_ # Alias to avoid confusion further down when using $_ in nested scopes.
         $dateTaken = $null
 
@@ -84,7 +84,7 @@ function Move-Pictures {
         $fileNameWithoutExtension = Get-FileNameWithoutFullExtension($file.FullName)
         $fileExtension = Get-FullExtension($file.fullname)
 
-        # We will not append the timestamp if the file name already contains a timestamp in our format. 
+        # We will not append the timestamp if the file name already contains a timestamp in our format.
         $appendTimestamp = $true
 
         Write-Verbose "File name: $($file.Name)"
@@ -104,13 +104,13 @@ function Move-Pictures {
         } else {
             # Add an underscore to any existing timestamps.
             $fileNameWithoutExtension = $fileNameWithoutExtension -replace "(.*?)(\d{8})(\d{6})(.*)", '$1$2_$3$4'
-            
+
             # Warn if a differently formatted date is already present in the file name. The regex checks if the existing
             # file name contains formatted dates.
             if ($fileNameWithoutExtension -match "\d{8}_\d{6}") {
                 try {
                     $existingDateObj = [datetime]::ParseExact($matches[0], "yyyyMMdd_HHmmss", $null)
-                    
+
                     if ([math]::Abs(($existingDateObj - $dateTaken).TotalDays) -gt 1) {
                         if ($dateFromExif) {
                             Write-Warning ("$($file.Name): Formatted date differing from EXIF data by more than one day " +
@@ -133,7 +133,7 @@ function Move-Pictures {
                     Write-Warning ("$($file.Name): Could not parse existing formatted date '$($matches[0])'. Error: $_")
                 }
             }
-            
+
             if ($appendTimestamp) {
                 $newFileName = $fileNameWithoutExtension + "_" + $formattedDate
             } else {
@@ -152,10 +152,10 @@ function Move-Pictures {
                 $newFileName = $DefaultPrefix + $newFileName
             }
         }
-       
+
         # The target folder is the destination directory plus the year and month the picture was taken.
         $targetFolder = Join-Path -Path $Destination -ChildPath $folderDate
-        
+
         # Create the target folder if it does not exist
         if (-not (Test-Path -Path $targetFolder)) {
             if ($PSCmdlet.ShouldProcess($targetFolder, "Create new directory")) {
@@ -163,7 +163,7 @@ function Move-Pictures {
             }
         }
 
-        if($TimestampFirst) {
+        if(-not $TrailingTimestamp) {
             $newFileName = $newFileName -replace "(.*)_(\d{8}_\d{6,9})(.*)", '$2_$1$3'
         }
 
@@ -185,7 +185,7 @@ function Move-Pictures {
             if (Test-Path -Path $targetPath) {
 
                 $targetFileSize = (Get-Item -Path $targetPath).Length
-                if ($file.Length -gt $targetFileSize) {                 
+                if ($file.Length -gt $targetFileSize) {
                     $targetDuplicatesFolder = Join-Path -Path $Source -ChildPath "TargetDuplicates"
                     $targetDuplicatesYearMonthFolder = Join-Path -Path $targetDuplicatesFolder -ChildPath $folderDate
 

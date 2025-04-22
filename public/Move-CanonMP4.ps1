@@ -1,8 +1,8 @@
 function Move-CanonMP4 {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param (
-        [Parameter(Mandatory=$false)]
-        [string]$Source = "C:\Users\Szymon\Documents\My_Documents\Code\PowerShell\Test",
+        [Parameter(Mandatory=$true)]
+        [string]$Source,
         [Parameter(Mandatory=$false)]
         [string]$Destination = "Offline_Archive\Videos\Canon",
         [Parameter(Mandatory=$false)]
@@ -42,34 +42,34 @@ function Move-CanonMP4 {
             Status   = "Initializing"
             PercentComplete = 0
         }
-    
+
         Write-Progress @progressParams
-    
+
         foreach ($file in $mp4Files) {
             $relativePath = $file.FullName.Substring($Source.Length).TrimStart('\')
             $destinationPath = Join-Path -Path $Destination -ChildPath $relativePath
             $destinationDir = Split-Path -Path $destinationPath
-    
+
             if (-not (Test-Path -Path $destinationDir)) {
                 if ($PSCmdlet.ShouldProcess($destinationDir, "Create directory")) {
                     New-Item -Path $destinationDir -ItemType Directory -Force | Out-Null
                 }
             }
-    
+
             if ($PSCmdlet.ShouldProcess($file.FullName, "Move to $destinationPath")) {
                 $progressParams.Status = "Moving $file.FullName"
                 Move-Item -Path $file.FullName -Destination $destinationPath -ErrorAction Stop
                 $movedSize += $file.Length
-    
+
                 if ($totalSize -gt 0) {
                     $progressParams.PercentComplete = [math]::Round(($movedSize / $totalSize) * 100)
                 } else {
                     $progressParams.PercentComplete = 100
                 }
-    
+
                 Write-Progress @progressParams
             }
-    
+
             $sourceDir = Split-Path -Path $file.FullName
             $childItems = Get-ChildItem -Path $sourceDir
             if ($childItems.Count -eq 0) {
@@ -86,7 +86,7 @@ function Move-CanonMP4 {
         $estimatedTimeSeconds = [math]::Ceiling(($totalSize / 1MB) / 35) # Adjust the divisor based on your transfer speed
         $estimatedFinishTime = $startDate.AddSeconds($estimatedTimeSeconds).ToString('HH:mm:ss')
         Write-Verbose "Starting file move at $startDate."
-        Write-Verbose "Total size: $([math]::Round($totalSize / 1MB, 2)) MB." 
+        Write-Verbose "Total size: $([math]::Round($totalSize / 1MB, 2)) MB."
         Write-Verbose "Estimated finish: $estimatedFinishTime"
 
         if ($PSCmdlet.ShouldProcess($Source, "Move all MP4 files to $Destination")) {

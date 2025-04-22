@@ -9,9 +9,15 @@ function Sync-LocalFiles {
             "C:\Users\Szymon\Documents\My_Documents"
             "C:\Users\Szymon\Documents\WindowsPowerShell"
         ),
-        
+
         [Parameter(Mandatory=$false)]
         [string]$Destination = "Local_Files_Mirror",
+
+        [Parameter(Mandatory=$false)]
+        [string[]]$ExcludedDirs = @(
+            "node_modules"
+            ".venv"
+        ),
 
         [Parameter(Mandatory=$false)]
         [string]$DestinationDriveSerialNumber = "Z131909R0JN8U6S",
@@ -35,7 +41,7 @@ function Sync-LocalFiles {
         Write-Error "Destination path '$Destination' does not exist. Please provide a valid destination path."
         return
     }
-    
+
     foreach ($Path in $Source) {
         Write-Verbose "Processing $Path"
         $LeafDirectory = Split-Path -Path $Path -Leaf
@@ -48,11 +54,22 @@ function Sync-LocalFiles {
             }
         }
 
+        $RobocopyArgs = @(
+            @($Path)
+            @($DestinationPath)
+            "/MIR"
+            "/XD"
+            $ExcludedDirs
+            "/R:5"
+            "/W:1"
+        )
+
         if ($PSCmdlet.ShouldProcess("Syncing $Path to mirror $DestinationPath")) {
-            robocopy $Path $DestinationPath /MIR /R:5 /W:1
+            robocopy @RobocopyArgs
         } else {
+            $RobocopyArgs = $RobocopyArgs + "/L"
             Write-Output "Starting a dry run of the sync operation..."
-            robocopy $Path $DestinationPath /MIR /R:5 /W:1 /L
+            robocopy @RobocopyArgs
             Write-Output "Dry run completed. No changes were made."
         }
     }
